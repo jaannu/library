@@ -1,0 +1,299 @@
+import tkinter as tk
+from tkinter import messagebox, simpledialog
+from PIL import Image, ImageTk
+import mysql.connector
+from datetime import date
+
+# ------------------ Database Connection ------------------
+mydb = mysql.connector.connect(
+    host="localhost",
+    user="root",
+    passwd="Jananii@Harinii27",
+    database="Library"
+)
+mycursor = mydb.cursor()
+
+# ------------------ Shared Popup Table Display ------------------
+def show_popup(title, records, root=None, headers=None):
+    popup = tk.Toplevel(root)
+    popup.title(title)
+    popup.geometry("700x400")
+    popup.configure(bg="white")
+
+    if not records:
+        tk.Label(popup, text="No records found.", font=("Segoe UI", 12)).pack(pady=20)
+        return
+
+    frame = tk.Frame(popup, bg="white")
+    frame.pack(fill="both", expand=True)
+
+    if headers:
+        for col, header in enumerate(headers):
+            tk.Label(frame, text=header, font=("Segoe UI", 11, "bold"),
+                     borderwidth=1, relief="solid", width=20, bg="#dfe6e9").grid(row=0, column=col)
+
+    for row_index, row in enumerate(records, start=1):
+        for col_index, cell in enumerate(row):
+            tk.Label(frame, text=cell, font=("Segoe UI", 10),
+                     borderwidth=1, relief="solid", width=20, bg="white").grid(row=row_index, column=col_index)
+
+# ------------------ Admin Functions ------------------
+def open_admin_panel(root):
+    def display_admin():
+        mycursor.execute("SELECT * FROM AdminRecord")
+        records = mycursor.fetchall()
+        show_popup("Admin Records", records, root, headers=["AdminID", "Password"])
+
+    def insert_admin():
+        admin_id = simpledialog.askstring("Insert Admin", "Enter new Admin ID:")
+        password = simpledialog.askstring("Insert Admin", "Enter password:", show="*")
+        if not admin_id or not password:
+            return
+        mycursor.execute("INSERT INTO AdminRecord (AdminID, Password) VALUES (%s, %s)", (admin_id, password))
+        mydb.commit()
+        messagebox.showinfo("Success", "Admin inserted successfully.")
+
+    def delete_admin():
+        admin_id = simpledialog.askstring("Delete Admin", "Enter Admin ID to delete:")
+        mycursor.execute("DELETE FROM AdminRecord WHERE AdminID=%s", (admin_id,))
+        mydb.commit()
+        messagebox.showinfo("Deleted", f"Admin '{admin_id}' deleted successfully.")
+
+    def search_admin():
+        admin_id = simpledialog.askstring("Search Admin", "Enter Admin ID to search:")
+        mycursor.execute("SELECT * FROM AdminRecord WHERE AdminID=%s", (admin_id,))
+        record = mycursor.fetchone()
+        if record:
+            show_popup("Admin Found", [record], root, headers=["AdminID", "Password"])
+        else:
+            messagebox.showerror("Not Found", "Admin not found.")
+
+    def update_admin():
+        admin_id = simpledialog.askstring("Update Admin", "Enter Admin ID to update:")
+        new_password = simpledialog.askstring("Update Password", "Enter new password:", show="*")
+        mycursor.execute("UPDATE AdminRecord SET Password=%s WHERE AdminID=%s", (new_password, admin_id))
+        mydb.commit()
+        messagebox.showinfo("Updated", f"Password updated for Admin '{admin_id}'.")
+
+    panel = tk.Toplevel(root)
+    panel.title("Admin Panel")
+    panel.geometry("300x500")
+    panel.configure(bg="white")
+
+    tk.Label(panel, text="Admin Management", font=("Segoe UI", 14, "bold"), bg="white").pack(pady=10)
+    tk.Button(panel, text="View Admins", font=("Segoe UI", 12), command=display_admin).pack(pady=10, fill="x", padx=30)
+    tk.Button(panel, text="Insert Admin", font=("Segoe UI", 12), command=insert_admin).pack(pady=10, fill="x", padx=30)
+    tk.Button(panel, text="Delete Admin", font=("Segoe UI", 12), command=delete_admin).pack(pady=10, fill="x", padx=30)
+    tk.Button(panel, text="Search Admin", font=("Segoe UI", 12), command=search_admin).pack(pady=10, fill="x", padx=30)
+    tk.Button(panel, text="Update Admin", font=("Segoe UI", 12), command=update_admin).pack(pady=10, fill="x", padx=30)
+
+    tk.Button(panel, text="User Management", font=("Segoe UI", 12), command=lambda: open_user_panel(panel)).pack(pady=10, fill="x", padx=30)
+    tk.Button(panel, text="Book Management", font=("Segoe UI", 12), command=lambda: open_book_panel(panel)).pack(pady=10, fill="x", padx=30)
+
+# ------------------ User Functions ------------------
+def open_user_panel(root):
+    def display_users():
+        mycursor.execute("""SELECT UserRecord.UserID, UserRecord.UserName, UserRecord.Password, 
+                                   BookRecord.BookName, UserRecord.DateBorrowed, UserRecord.NoOfBooksBorrowed
+                            FROM UserRecord 
+                            LEFT JOIN BookRecord ON UserRecord.BookID = BookRecord.BookID""")
+        records = mycursor.fetchall()
+        formatted = [(row[0], row[1], row[2], row[3] or "None", row[4] or "N/A", row[5]) for row in records]
+        show_popup("User Records", formatted, root,
+                   headers=["UserID", "UserName", "Password", "BookIssued", "DateBorrowed", "NoOfBooksBorrowed"])
+
+    def insert_user():
+        uid = simpledialog.askstring("Insert User", "Enter User ID:")
+        uname = simpledialog.askstring("Insert User", "Enter User Name:")
+        pwd = simpledialog.askstring("Insert User", "Enter Password:", show="*")
+        if not uid or not uname or not pwd:
+            return
+        mycursor.execute("""INSERT INTO UserRecord 
+                            (UserID, UserName, Password, BookID, DateBorrowed, NoOfBooksBorrowed) 
+                            VALUES (%s, %s, %s, NULL, NULL, 0)""",
+                         (uid, uname, pwd))
+        mydb.commit()
+        messagebox.showinfo("Success", "User inserted successfully.")
+
+    panel = tk.Toplevel(root)
+    panel.title("User Panel")
+    panel.geometry("350x350")
+    panel.configure(bg="white")
+
+    tk.Label(panel, text="User Panel", font=("Segoe UI", 14, "bold"), bg="white").pack(pady=10)
+    tk.Button(panel, text="View Users", font=("Segoe UI", 12), command=display_users).pack(pady=10, fill="x", padx=30)
+    tk.Button(panel, text="Insert User", font=("Segoe UI", 12), command=insert_user).pack(pady=10, fill="x", padx=30)
+
+# ------------------ Book Panel (unchanged) ------------------
+def open_book_panel(root):
+    def display_books():
+        mycursor.execute("SELECT * FROM BookRecord")
+        records = mycursor.fetchall()
+        show_popup("Book Records", records, root,
+                   headers=["BookID", "BookName", "Author", "Publisher", "PublishingDate", "Language", "Genre"])
+
+    def insert_book():
+        book_id = simpledialog.askstring("Insert Book", "Enter Book ID:")
+        book_name = simpledialog.askstring("Insert Book", "Enter Book Name:")
+        author = simpledialog.askstring("Insert Book", "Enter Author Name:")
+        publisher = simpledialog.askstring("Insert Book", "Enter Publisher:")
+        pub_date = simpledialog.askstring("Insert Book", "Enter Publishing Date (YYYY-MM-DD):")
+        language = simpledialog.askstring("Insert Book", "Enter Language:")
+        genre = simpledialog.askstring("Insert Book", "Enter Genre:")
+
+        if not all([book_id, book_name, author, publisher, pub_date, language, genre]):
+            messagebox.showerror("Error", "All fields must be filled.")
+            return
+
+        mycursor.execute("""
+            INSERT INTO BookRecord (BookID, BookName, Author, Publisher, PublishingDate, Language, Genre)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (book_id, book_name, author, publisher, pub_date, language, genre))
+        mydb.commit()
+        messagebox.showinfo("Success", "Book inserted successfully!")
+
+    def delete_book():
+        book_id = simpledialog.askstring("Delete Book", "Enter Book ID to delete:")
+        mycursor.execute("DELETE FROM BookRecord WHERE BookID=%s", (book_id,))
+        mydb.commit()
+        messagebox.showinfo("Deleted", f"Book '{book_id}' deleted successfully.")
+
+    def search_book():
+        book_id = simpledialog.askstring("Search Book", "Enter Book ID to search:")
+        mycursor.execute("SELECT * FROM BookRecord WHERE BookID=%s", (book_id,))
+        record = mycursor.fetchone()
+        if record:
+            show_popup("Book Found", [record], root,
+                       headers=["BookID", "BookName", "Author", "Publisher", "PublishingDate", "Language", "Genre"])
+        else:
+            messagebox.showerror("Not Found", "Book not found.")
+
+    def update_book():
+        book_id = simpledialog.askstring("Update Book", "Enter Book ID to update:")
+        new_name = simpledialog.askstring("Update Book", "Enter new Book Name:")
+        new_author = simpledialog.askstring("Update Book", "Enter new Author:")
+        new_publisher = simpledialog.askstring("Update Book", "Enter new Publisher:")
+        new_pubdate = simpledialog.askstring("Update Book", "Enter new Publishing Date (YYYY-MM-DD):")
+        new_language = simpledialog.askstring("Update Book", "Enter new Language:")
+        new_genre = simpledialog.askstring("Update Book", "Enter new Genre:")
+
+        mycursor.execute("""
+            UPDATE BookRecord 
+            SET BookName=%s, Author=%s, Publisher=%s, PublishingDate=%s, Language=%s, Genre=%s 
+            WHERE BookID=%s
+        """, (new_name, new_author, new_publisher, new_pubdate, new_language, new_genre, book_id))
+        mydb.commit()
+        messagebox.showinfo("Updated", f"Book '{book_id}' updated successfully.")
+
+    panel = tk.Toplevel(root)
+    panel.title("Book Panel")
+    panel.geometry("350x500")
+    panel.configure(bg="white")
+
+    tk.Label(panel, text="Book Management", font=("Segoe UI", 14, "bold"), bg="white").pack(pady=10)
+    tk.Button(panel, text="View Books", font=("Segoe UI", 12), command=display_books).pack(pady=10, fill="x", padx=30)
+    tk.Button(panel, text="Insert Book", font=("Segoe UI", 12), command=insert_book).pack(pady=10, fill="x", padx=30)
+    tk.Button(panel, text="Delete Book", font=("Segoe UI", 12), command=delete_book).pack(pady=10, fill="x", padx=30)
+    tk.Button(panel, text="Search Book", font=("Segoe UI", 12), command=search_book).pack(pady=10, fill="x", padx=30)
+    tk.Button(panel, text="Update Book", font=("Segoe UI", 12), command=update_book).pack(pady=10, fill="x", padx=30)
+
+# ------------------ Login GUI Setup ------------------
+root = tk.Tk()
+root.title("Library Login")
+root.geometry("800x600")
+root.resizable(False, False)
+
+# Background image loading (optional)
+# Background image loading (fixed version)
+try:
+    bg_img = Image.open(r"C:\Users\S Jananii\OneDrive\Desktop\codetantra\Library-Management-System-main\library_bg.png")  # ✅ Replace with actual path if needed
+    bg_img = bg_img.resize((800, 600), Image.Resampling.LANCZOS)
+    bg_photo = ImageTk.PhotoImage(bg_img)
+    bg_label = tk.Label(root, image=bg_photo)
+    bg_label.image = bg_photo  # ✅ Keep a reference to avoid garbage collection
+    bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+except Exception as e:
+    print("Background image error:", e)
+    root.configure(bg="#ffe6f0")
+
+label_font = ("Segoe UI", 13, "bold")
+entry_font = ("Segoe UI", 14)
+base_y = 250
+center_x = 400
+
+tk.Label(root, text="User ID", font=label_font, bg="#eac4d5").place(x=center_x, y=base_y, anchor='center')
+user_entry = tk.Entry(root, width=35, font=entry_font)
+user_entry.place(x=center_x - 120, y=base_y + 30)
+
+tk.Label(root, text="Password", font=label_font, bg="#eac4d5").place(x=center_x, y=base_y + 80, anchor='center')
+pass_entry = tk.Entry(root, show="*", width=35, font=entry_font)
+pass_entry.place(x=center_x - 120, y=base_y + 110)
+
+toggle_var = tk.StringVar(value="user")
+tk.Radiobutton(root, text="User", variable=toggle_var, value="user", font=("Segoe UI", 12),
+               bg="#ffe6f0", fg="blue", selectcolor="#fdf5ce").place(x=center_x - 70, y=base_y - 40)
+tk.Radiobutton(root, text="Admin", variable=toggle_var, value="admin", font=("Segoe UI", 12),
+               bg="#ffe6f0", fg="green", selectcolor="#a8e6cf").place(x=center_x + 10, y=base_y - 40)
+
+def login():
+    uid = user_entry.get().strip()
+    pwd = pass_entry.get().strip()
+    role = toggle_var.get()
+    if not uid or not pwd:
+        messagebox.showerror("Error", "Please enter both User ID and Password.")
+        return
+    if role == "admin":
+        mycursor.execute("SELECT Password FROM AdminRecord WHERE AdminID = %s", (uid,))
+    else:
+        mycursor.execute("SELECT Password FROM UserRecord WHERE UserID = %s", (uid,))
+    result = mycursor.fetchone()
+    if result and result[0] == pwd:
+        messagebox.showinfo("Success", f"Welcome {uid}!")
+        if role == "admin":
+            open_admin_panel(root)
+        else:
+            root.destroy()
+    else:
+        messagebox.showerror("Login Failed", "Incorrect credentials.")
+
+def new_user_popup():
+    popup = tk.Toplevel(root)
+    popup.title("Register New User")
+    popup.geometry("350x300")
+    popup.configure(bg="white")
+    popup.grab_set()
+
+    tk.Label(popup, text="New User Registration", font=("Segoe UI", 14, "bold"), bg="white", fg="#0099cc").pack(pady=10)
+    tk.Label(popup, text="User ID", bg="white", font=("Segoe UI", 11)).pack()
+    uid_entry = tk.Entry(popup, width=30, font=("Segoe UI", 11))
+    uid_entry.pack()
+    tk.Label(popup, text="User Name", bg="white", font=("Segoe UI", 11)).pack()
+    uname_entry = tk.Entry(popup, width=30, font=("Segoe UI", 11))
+    uname_entry.pack()
+    tk.Label(popup, text="Password", bg="white", font=("Segoe UI", 11)).pack()
+    pwd_entry = tk.Entry(popup, width=30, font=("Segoe UI", 11), show="*")
+    pwd_entry.pack()
+
+    def save_user():
+        uid = uid_entry.get().strip()
+        uname = uname_entry.get().strip()
+        pwd = pwd_entry.get().strip()
+        if not uid or not uname or not pwd:
+            messagebox.showerror("Error", "All fields are required.", parent=popup)
+            return
+        mycursor.execute("""INSERT INTO UserRecord 
+                            (UserID, UserName, Password, BookID, DateBorrowed, NoOfBooksBorrowed) 
+                            VALUES (%s, %s, %s, NULL, NULL, 0)""",
+                         (uid, uname, pwd))
+        mydb.commit()
+        messagebox.showinfo("Success", "User registered successfully!", parent=popup)
+        popup.destroy()
+
+    tk.Button(popup, text="Register", bg="#fdf5ce", fg="black", font=("Segoe UI", 11), command=save_user).pack(pady=15)
+
+tk.Button(root, text="Login", width=20, font=("Segoe UI", 12, "bold"),
+          bg="#a8e6cf", fg="black", command=login).place(x=center_x - 100, y=base_y + 160)
+tk.Button(root, text="New User? Register", width=20, font=("Segoe UI", 11),
+          bg="#fdf5ce", command=new_user_popup).place(x=center_x - 100, y=base_y + 200)
+
+root.mainloop()

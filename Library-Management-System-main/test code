@@ -1,0 +1,24 @@
+from tkinter import *
+from PIL import Image, ImageTk  # Don't forget Pillow must be installed
+
+root = Tk()
+root.geometry("800x600")
+root.title("Test Background")
+
+bg_path = r"C:\Users\S Jananii\OneDrive\Desktop\codetantra\Library-Management-System-main\library_bg.png"
+
+try:
+    # Use LANCZOS instead of deprecated ANTIALIAS
+    bg_img = Image.open(bg_path)
+    bg_img = bg_img.resize((800, 600), Image.Resampling.LANCZOS)
+    bg_photo = ImageTk.PhotoImage(bg_img)
+
+    label = Label(root, image=bg_photo)
+    label.place(x=0, y=0, relwidth=1, relheight=1)
+
+except Exception as e:
+    print("Error loading image:", e)
+    root.configure(bg="pink")
+
+root.mainloop()
+root.mainloop()

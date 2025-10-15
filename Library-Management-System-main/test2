@@ -1,0 +1,200 @@
+import tkinter as tk
+from tkinter import messagebox, simpledialog
+from PIL import Image, ImageTk
+import mysql.connector
+from datetime import datetime, timedelta
+
+# ------------------ Database Connection ------------------
+mydb = mysql.connector.connect(
+    host="localhost",
+    user="root",
+    passwd="Jananii@Harinii27",
+    database="Library"
+)
+mycursor = mydb.cursor()
+
+# ------------------ Helper Functions ------------------
+
+def show_popup(title, content, root=None, headers=None):
+    popup = tk.Toplevel(root)
+    popup.title(title)
+    popup.geometry("600x400")
+    popup.configure(bg="white")
+
+    if headers:
+        for col_index, header in enumerate(headers):
+            tk.Label(popup, text=header, font=("Segoe UI", 10, "bold"), bg="white", borderwidth=1, relief="solid", width=20).grid(row=0, column=col_index)
+
+    for row_index, row in enumerate(content, start=1):
+        for col_index, cell in enumerate(row):
+            tk.Label(popup, text=cell, font=("Segoe UI", 10), bg="white", borderwidth=1, relief="solid", width=20).grid(row=row_index, column=col_index)
+
+# ------------------ Core Issuing Logic ------------------
+
+def issue_book_to_user(user_id, book_id, panel):
+    mycursor.execute("SELECT BorrowedBooks, UserType, NoOfBooksBorrowed FROM UserRecord WHERE UserID=%s", (user_id,))
+    result = mycursor.fetchone()
+    if not result:
+        messagebox.showerror("Error", "User not found.", parent=panel)
+        return
+
+    current_books = result[0] or ""
+    user_type = result[1]
+    borrowed_count = result[2] or 0
+
+    if borrowed_count >= 3:
+        messagebox.showerror("Limit Reached", "You have already borrowed 3 books.", parent=panel)
+        return
+
+    books_list = current_books.split(',') if current_books else []
+    if book_id in books_list:
+        messagebox.showwarning("Duplicate", f"You have already borrowed Book ID {book_id}", parent=panel)
+        return
+
+    books_list.append(book_id)
+    new_books = ','.join(books_list)
+
+    date_borrowed = datetime.today().date()
+    days = 15 if user_type == "Student" else 30
+    due_date = date_borrowed + timedelta(days=days)
+
+    mycursor.execute("""
+        INSERT INTO BookRecordTrack (UserID, BookID, DateBorrowed, DueDate)
+        VALUES (%s, %s, %s, %s)
+    """, (user_id, book_id, date_borrowed, due_date))
+
+    mycursor.execute("""
+        UPDATE UserRecord
+        SET BorrowedBooks=%s, NoOfBooksBorrowed=NoOfBooksBorrowed + 1
+        WHERE UserID=%s
+    """, (new_books, user_id))
+    mydb.commit()
+
+    messagebox.showinfo("Success", f"Book {book_id} issued to {user_id}", parent=panel)
+
+# ------------------ GUI Panel Logic ------------------
+
+def open_logged_in_user_panel(user_id):
+    panel = tk.Toplevel()
+    panel.title("User Dashboard")
+    panel.geometry("400x450")
+    panel.configure(bg="white")
+
+    def view_available_books():
+        popup = tk.Toplevel(panel)
+        popup.title("Available Books")
+        popup.geometry("800x400")
+        popup.configure(bg="white")
+        mycursor.execute("SELECT * FROM BookRecord")
+        books = mycursor.fetchall()
+        show_popup("Available Books", books, popup)
+
+    def borrow_book():
+        book_id = simpledialog.askstring("Borrow Book", "Enter Book ID to borrow:", parent=panel)
+        if book_id:
+            issue_book_to_user(user_id, book_id, panel)
+
+    def return_book():
+        mycursor.execute("SELECT BorrowedBooks FROM UserRecord WHERE UserID=%s", (user_id,))
+        result = mycursor.fetchone()
+        if result and result[0]:
+            books = result[0].split(",")
+            if not books:
+                messagebox.showinfo("Info", "No books to return.", parent=panel)
+                return
+            return_id = simpledialog.askstring("Return Book", f"Books borrowed: {', '.join(books)}\nEnter Book ID to return:", parent=panel)
+            if return_id and return_id in books:
+                books.remove(return_id)
+                updated_books = ','.join(books)
+                mycursor.execute("""
+                    DELETE FROM BookRecordTrack WHERE UserID=%s AND BookID=%s
+                """, (user_id, return_id))
+                mycursor.execute("""
+                    UPDATE UserRecord
+                    SET BorrowedBooks=%s, NoOfBooksBorrowed=NoOfBooksBorrowed - 1
+                    WHERE UserID=%s
+                """, (updated_books, user_id))
+                mydb.commit()
+                messagebox.showinfo("Returned", f"Book {return_id} returned successfully!", parent=panel)
+            else:
+                messagebox.showerror("Invalid", "Invalid Book ID", parent=panel)
+        else:
+            messagebox.showinfo("Info", "You haven't borrowed any books.", parent=panel)
+
+    def view_my_books():
+        mycursor.execute("""
+            SELECT BookID, DateBorrowed, DueDate FROM BookRecordTrack
+            WHERE UserID=%s
+        """, (user_id,))
+        books = mycursor.fetchall()
+        if books:
+            show_popup("Your Borrowed Books", books, panel, headers=["Book ID", "Date Borrowed", "Due Date"])
+        else:
+            messagebox.showinfo("Info", "No books borrowed currently.", parent=panel)
+
+    tk.Label(panel, text=f"📚 Welcome {user_id}", font=("Segoe UI", 14, "bold"), bg="white").pack(pady=10)
+    tk.Button(panel, text="View Available Books", font=("Segoe UI", 12), command=view_available_books).pack(pady=5, fill="x", padx=30)
+    tk.Button(panel, text="Borrow Book", font=("Segoe UI", 12), command=borrow_book).pack(pady=5, fill="x", padx=30)
+    tk.Button(panel, text="Return Book", font=("Segoe UI", 12), command=return_book).pack(pady=5, fill="x", padx=30)
+    tk.Button(panel, text="View My Books", font=("Segoe UI", 12), command=view_my_books).pack(pady=5, fill="x", padx=30)
+
+# ------------------ Login GUI Setup ------------------
+
+root = tk.Tk()
+root.title("Library Login")
+root.geometry("800x600")
+root.resizable(False, False)
+
+try:
+    bg_img = Image.open("library_bg.png")
+    bg_img = bg_img.resize((800, 600), Image.Resampling.LANCZOS)
+    bg_photo = ImageTk.PhotoImage(bg_img)
+    tk.Label(root, image=bg_photo).place(x=0, y=0, relwidth=1, relheight=1)
+except:
+    root.configure(bg="#ffe6f0")
+
+label_font = ("Segoe UI", 13, "bold")
+entry_font = ("Segoe UI", 14)
+base_y = 250
+center_x = 400
+
+tk.Label(root, text="User ID", font=label_font, bg="#eac4d5").place(x=center_x, y=base_y, anchor='center')
+user_entry = tk.Entry(root, width=35, font=entry_font)
+user_entry.place(x=center_x - 120, y=base_y + 30)
+
+tk.Label(root, text="Password", font=label_font, bg="#eac4d5").place(x=center_x, y=base_y + 80, anchor='center')
+pass_entry = tk.Entry(root, show="*", width=35, font=entry_font)
+pass_entry.place(x=center_x - 120, y=base_y + 110)
+
+toggle_var = tk.StringVar(value="user")
+usertype_var = tk.StringVar(value="Student")
+
+def login():
+    uid = user_entry.get().strip()
+    pwd = pass_entry.get().strip()
+    role = toggle_var.get()
+    mycursor.execute(f"SELECT * FROM {'UserRecord' if role == 'user' else 'AdminRecord'} WHERE UserID=%s AND Password=%s", (uid, pwd))
+    if mycursor.fetchone():
+        if role == "user":
+            open_logged_in_user_panel(uid)
+        else:
+            messagebox.showinfo("Admin", "Admin login successful!")  # Hook admin panel if needed
+    else:
+        messagebox.showerror("Invalid", "Incorrect credentials!")
+
+tk.Radiobutton(root, text="User", variable=toggle_var, value="user", font=("Segoe UI", 12),
+               bg="#ffe6f0", fg="blue", selectcolor="#fdf5ce",
+               command=lambda: usertype_frame.place(x=center_x - 120, y=base_y + 160)).place(x=center_x - 120, y=base_y - 40)
+
+tk.Radiobutton(root, text="Admin", variable=toggle_var, value="admin", font=("Segoe UI", 12),
+               bg="#ffe6f0", fg="green", selectcolor="#a8e6cf",
+               command=lambda: usertype_frame.place_forget()).place(x=center_x + 80, y=base_y - 40)
+
+usertype_frame = tk.Frame(root, bg="#ffe6f0")
+tk.Label(usertype_frame, text="User Type", font=("Segoe UI", 11), bg="#ffe6f0").pack(anchor="w")
+tk.OptionMenu(usertype_frame, usertype_var, "Student", "Teacher").pack()
+
+tk.Button(root, text="Login", font=("Segoe UI", 12), bg="#a8e6cf", command=login).place(x=center_x - 70, y=base_y + 200)
+tk.Button(root, text="Register", font=("Segoe UI", 12), bg="#fdf5ce").place(x=center_x + 10, y=base_y + 200)
+
+root.mainloop()
