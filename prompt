@@ -1,0 +1,57 @@
+You are an expert full-stack AI and IoT developer. Create a **full hybrid AI mood-adaptive ambient intelligence system** with the following features and novelties:
+
+1. **Hybrid Detection Logic**:  
+   - Use **MediaPipe** for fast real-time face detection.  
+   - Use **Dlib** embeddings for precise face recognition and user identification.  
+   - Combine both for a hybrid system: MediaPipe for speed, Dlib for accuracy.
+
+2. **Adaptive Thresholding**:  
+   - Recognition threshold dynamically adjusts based on lighting conditions, detection confidence, and face angle.  
+   - If confidence is low, prompt user for recapture or fallback to local embedding storage.
+
+3. **Smart Consent Layer**:  
+   - Before enrolling a user, explicitly ask for consent.  
+   - Ensure consent is logged in the backend and linked to user metadata.
+
+4. **Multi-Tier Metadata System**:  
+   - Each user has metadata like `tier` (Gold/Silver/Bronze), `favorite music`, `preferred ambience`, etc.  
+   - Metadata used to personalize ambient response when recognized.
+
+5. **Backend API Sync**:  
+   - `/api/users/enroll` for saving new users with embeddings and metadata.  
+   - `/api/users/recognize` for logging recognition events and returning personalized recommendations.  
+   - Auto-handle **offline fallback**: if backend is unreachable, temporarily store embeddings locally and sync later.  
+   - Each session logs timestamp, user name, recognition confidence, and face quality score.
+
+6. **Face Quality Scoring**:  
+   - Before enrollment, check if face is frontal, sharp, well-lit.  
+   - If quality is poor, ask user to recapture.
+
+7. **Emotion & Mood Detection**:  
+   - Infer real-time emotional state using hybrid emotion recognition (FER + deep face features).  
+   - Calculate **group mood blending** when multiple users are present to drive collective ambient response.
+
+8. **Ambient Intelligence Integration**:  
+   - Connect detected moods and recognized users to **ambient control** systems: music playlists, lighting colors, digital signage, temperature, etc.  
+   - Use simulated or real IoT API calls to adjust environment dynamically.
+
+9. **Session Logging & Analytics**:  
+   - Store recognition events with timestamps, emotions, confidence, and user metadata.  
+   - Allow querying of mood trends, user activity, and ambient responses over time.
+
+10. **Optional Speech Feedback**:  
+    - Use a text-to-speech engine to announce recognition: “User recognized: Jananii”.  
+    - Provide mood-based greetings like: “Welcome back Jananii! You seem happy today.”
+
+11. **Real-Time Frontend Dashboard**:  
+    - Show live camera feed with recognized users and emotions overlay.  
+    - Display session logs, current group mood, and ambient control actions.  
+    - Update dynamically via WebSockets (socket.io) or polling.
+
+12. **Robustness & UX Enhancements**:  
+    - Handle multiple users in frame simultaneously.  
+    - Retry logic for failed recognition or network issues.  
+    - Visual indicators of detection confidence, face quality, and consent status.  
+    - Configurable thresholds for recognition and emotion sensitivity.
+
+Generate **full Python code for the AI/edge layer**, **Node.js backend API code**, and **React frontend logic** integrated seamlessly. Include all logic for hybrid detection, adaptive thresholds, consent, metadata, offline fallback, session logging, emotion inference, ambient control, and optional speech feedback.
